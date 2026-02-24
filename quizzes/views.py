@@ -17,17 +17,17 @@ from .serializers import (
     QuestionCreateSerializer,
     QuizDashboardSerializer,
     QuizSubmitSerializer,
-)from django.shortcuts import render
+)
 
+
+# =====================================================
+# TEACHER VIEWS
+# =====================================================
 
 class CreateQuizView(APIView):
-    permission_classes = [
-        IsAuthenticated,
-        IsEmailVerified,
-    ]
+    permission_classes = [IsAuthenticated, IsEmailVerified]
 
     def post(self, request):
-        # Teacher role check
         if not request.user.has_role("teacher"):
             raise ValidationError("Only teachers can create quizzes.")
 
@@ -35,14 +35,11 @@ class CreateQuizView(APIView):
         if not subject_id:
             raise ValidationError("Subject is required.")
 
-        # Subject assignment check
         if not SubjectTeacher.objects.filter(
             subject_id=subject_id,
             teacher=request.user
         ).exists():
-            raise ValidationError(
-                "You are not assigned to this subject."
-            )
+            raise ValidationError("You are not assigned to this subject.")
 
         serializer = QuizCreateSerializer(
             data=request.data,
@@ -52,19 +49,13 @@ class CreateQuizView(APIView):
         quiz = serializer.save()
 
         return Response(
-            {
-                "id": quiz.id,
-                "detail": "Quiz created successfully."
-            },
+            {"id": quiz.id, "detail": "Quiz created successfully."},
             status=status.HTTP_201_CREATED,
         )
 
 
 class AddQuestionView(APIView):
-    permission_classes = [
-        IsAuthenticated,
-        IsEmailVerified,
-    ]
+    permission_classes = [IsAuthenticated, IsEmailVerified]
 
     def post(self, request, pk):
         quiz = get_object_or_404(Quiz, pk=pk)
@@ -92,10 +83,7 @@ class AddQuestionView(APIView):
 
 
 class PublishQuizView(APIView):
-    permission_classes = [
-        IsAuthenticated,
-        IsEmailVerified,
-    ]
+    permission_classes = [IsAuthenticated, IsEmailVerified]
 
     def patch(self, request, pk):
         quiz = get_object_or_404(Quiz, pk=pk)
@@ -124,11 +112,12 @@ class PublishQuizView(APIView):
         )
 
 
+# =====================================================
+# STUDENT VIEWS
+# =====================================================
+
 class StudentDashboardView(APIView):
-    permission_classes = [
-        IsAuthenticated,
-        IsEmailVerified,
-    ]
+    permission_classes = [IsAuthenticated, IsEmailVerified]
 
     def get(self, request):
         status_filter = request.query_params.get("status")
@@ -164,10 +153,7 @@ class StudentDashboardView(APIView):
 
 
 class StartQuizView(APIView):
-    permission_classes = [
-        IsAuthenticated,
-        IsEmailVerified,
-    ]
+    permission_classes = [IsAuthenticated, IsEmailVerified]
 
     def post(self, request, pk):
         quiz = get_object_or_404(
@@ -176,7 +162,6 @@ class StartQuizView(APIView):
             is_published=True,
         )
 
-        # Enrollment check
         if not Enrollment.objects.filter(
             user=request.user,
             course=quiz.subject.course,
@@ -184,11 +169,10 @@ class StartQuizView(APIView):
         ).exists():
             raise ValidationError("Not enrolled in this course.")
 
-        # Expiry check
         if quiz.due_date <= timezone.now():
             raise ValidationError("Quiz expired.")
 
-        attempt, created = QuizAttempt.objects.get_or_create(
+        attempt, _ = QuizAttempt.objects.get_or_create(
             quiz=quiz,
             student=request.user,
         )
@@ -203,10 +187,7 @@ class StartQuizView(APIView):
 
 
 class SubmitQuizView(APIView):
-    permission_classes = [
-        IsAuthenticated,
-        IsEmailVerified,
-    ]
+    permission_classes = [IsAuthenticated, IsEmailVerified]
 
     def post(self, request, pk):
         quiz = get_object_or_404(
@@ -216,10 +197,7 @@ class SubmitQuizView(APIView):
 
         serializer = QuizSubmitSerializer(
             data=request.data,
-            context={
-                "request": request,
-                "quiz": quiz,
-            },
+            context={"request": request, "quiz": quiz},
         )
         serializer.is_valid(raise_exception=True)
 
@@ -233,5 +211,3 @@ class SubmitQuizView(APIView):
             },
             status=status.HTTP_200_OK,
         )
-
-# Create your views here.
