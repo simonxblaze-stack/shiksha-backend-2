@@ -5,11 +5,19 @@ from courses.models import Course, Subject, Chapter
 from payments.models import Order, Payment
 from enrollments.models import Enrollment
 from assignments.models import Assignment, AssignmentSubmission
-
+from quizzes.models import (
+    SubjectTeacher,
+    Quiz,
+    Question,
+    Choice,
+    QuizAttempt,
+    StudentAnswer,
+)
 
 # =========================
 # USER ADMIN
 # =========================
+
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
@@ -152,3 +160,144 @@ class AssignmentSubmissionAdmin(admin.ModelAdmin):
         "assignment__title",
     )
     ordering = ("-submitted_at",)
+
+
+@admin.register(SubjectTeacher)
+class SubjectTeacherAdmin(admin.ModelAdmin):
+    list_display = ("teacher", "subject", "assigned_at")
+    list_filter = ("subject__course", "subject")
+    search_fields = ("teacher__email", "subject__name")
+
+
+@admin.register(SubjectTeacher)
+class SubjectTeacherAdmin(admin.ModelAdmin):
+    list_display = ("teacher", "subject", "assigned_at")
+    list_filter = ("subject__course", "subject")
+    search_fields = ("teacher__email", "subject__name")
+
+
+class QuestionInline(admin.TabularInline):
+    model = Question
+    extra = 0
+    show_change_link = True
+
+
+@admin.register(Quiz)
+class QuizAdmin(admin.ModelAdmin):
+    list_display = (
+        "title",
+        "subject",
+        "created_by",
+        "is_published",
+        "due_date",
+        "total_marks",
+        "created_at",
+    )
+
+    list_filter = (
+        "is_published",
+        "due_date",
+        "subject__course",
+        "subject",
+    )
+
+    search_fields = (
+        "title",
+        "created_by__email",
+        "subject__name",
+        "subject__course__title",
+    )
+
+    ordering = ("-created_at",)
+
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+        "total_marks",
+    )
+
+    inlines = [QuestionInline]
+
+
+@admin.register(Question)
+class QuestionAdmin(admin.ModelAdmin):
+    list_display = (
+        "quiz",
+        "order",
+        "marks",
+    )
+
+    list_filter = (
+        "quiz__subject__course",
+        "quiz__subject",
+    )
+
+    ordering = ("quiz", "order")
+
+    inlines = [ChoiceInline]
+
+
+class StudentAnswerInline(admin.TabularInline):
+    model = StudentAnswer
+    extra = 0
+    readonly_fields = (
+        "question",
+        "selected_choice",
+        "is_correct",
+    )
+    can_delete = False
+
+
+@admin.register(QuizAttempt)
+class QuizAttemptAdmin(admin.ModelAdmin):
+    list_display = (
+        "student",
+        "quiz",
+        "score",
+        "status",
+        "submitted_at",
+    )
+
+    list_filter = (
+        "status",
+        "quiz__subject__course",
+        "quiz__subject",
+    )
+
+    search_fields = (
+        "student__email",
+        "quiz__title",
+    )
+
+    ordering = ("-submitted_at",)
+
+    readonly_fields = (
+        "student",
+        "quiz",
+        "score",
+        "status",
+        "started_at",
+        "submitted_at",
+    )
+
+    inlines = [StudentAnswerInline]
+
+
+@admin.register(StudentAnswer)
+class StudentAnswerAdmin(admin.ModelAdmin):
+    list_display = (
+        "attempt",
+        "question",
+        "selected_choice",
+        "is_correct",
+    )
+
+    list_filter = (
+        "is_correct",
+        "attempt__quiz__subject__course",
+    )
+
+    search_fields = (
+        "attempt__student__email",
+        "question__text",
+    )
