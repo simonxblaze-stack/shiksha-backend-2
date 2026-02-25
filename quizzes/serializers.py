@@ -10,7 +10,7 @@ from .models import (
     Choice,
     QuizAttempt,
     StudentAnswer,
-    SubjectTeacher,
+
 )
 from enrollments.models import Enrollment
 
