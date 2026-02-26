@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.utils import timezone
 from django.db.models import Q
+from datetime import timedelta
 import uuid
 
 from .models import LiveSession
@@ -26,13 +27,13 @@ class LiveSessionCreateSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         user = request.user
 
-        # ---- 1️⃣ Role Check ----
+        # 1️⃣ Role Check
         if not user.has_role("teacher"):
             raise serializers.ValidationError(
                 "Only teachers can schedule sessions."
             )
 
-        # ---- 2️⃣ Subject Validation ----
+        # 2️⃣ Subject Validation
         try:
             subject = Subject.objects.select_related("course").get(
                 id=data["subject_id"]
@@ -40,7 +41,7 @@ class LiveSessionCreateSerializer(serializers.ModelSerializer):
         except Subject.DoesNotExist:
             raise serializers.ValidationError("Invalid subject.")
 
-        # ---- 3️⃣ Subject Assignment Check ----
+        # 3️⃣ Subject Assignment Check
         if not subject.teachers.filter(id=user.id).exists():
             raise serializers.ValidationError(
                 "You are not assigned to this subject."
@@ -50,18 +51,18 @@ class LiveSessionCreateSerializer(serializers.ModelSerializer):
         end_time = data["end_time"]
         now = timezone.now()
 
-        # ---- 4️⃣ Time Validation ----
+        # 4️⃣ Time Validation
         if start_time >= end_time:
             raise serializers.ValidationError(
                 "End time must be after start time."
             )
 
-        if start_time < now:
+        if start_time <= now:
             raise serializers.ValidationError(
                 "Cannot schedule a session in the past."
             )
 
-        # ---- 5️⃣ Overlapping Session Protection ----
+        # 5️⃣ Overlapping Protection
         overlap_exists = LiveSession.objects.filter(
             subject=subject
         ).filter(
@@ -74,16 +75,13 @@ class LiveSessionCreateSerializer(serializers.ModelSerializer):
                 "This session overlaps with an existing session."
             )
 
-        # Store subject for create()
         self._validated_subject = subject
-
         return data
 
     def create(self, validated_data):
         subject = self._validated_subject
         user = self.context["request"].user
 
-        # ---- 6️⃣ Safe Unique Room Name ----
         room_name = f"session_{uuid.uuid4().hex}"
 
         return LiveSession.objects.create(

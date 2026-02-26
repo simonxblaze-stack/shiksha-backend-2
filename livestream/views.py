@@ -1,3 +1,6 @@
+import logging
+from datetime import timedelta
+
 from django.conf import settings
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
@@ -5,20 +8,64 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse
 from django.db import transaction
 
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework import status
 
 from livekit.api import WebhookReceiver
 
 from enrollments.models import Enrollment
 from .models import LiveSession, LiveSessionAttendance
 from .services import generate_livekit_token
-from .serializers import LiveSessionCreateSerializer
-import logging
+from .serializers import (
+    LiveSessionCreateSerializer,
+    LiveSessionListSerializer,
+)
 
 logger = logging.getLogger(__name__)
+
+
+class StudentLiveSessionListView(generics.ListAPIView):
+    serializer_class = LiveSessionListSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+
+        if not user.has_role("student"):
+            raise PermissionDenied("Only students allowed.")
+
+        active_courses = Enrollment.objects.filter(
+            user=user,
+            status=Enrollment.STATUS_ACTIVE
+        ).values_list("course_id", flat=True)
+
+        return (
+            LiveSession.objects
+            .filter(course_id__in=active_courses)
+            .select_related("course", "subject", "created_by")
+            .order_by("start_time")
+        )
+
+
+class TeacherLiveSessionListView(generics.ListAPIView):
+    serializer_class = LiveSessionListSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+
+        if not user.has_role("teacher"):
+            raise PermissionDenied("Only teachers allowed.")
+
+        return (
+            LiveSession.objects
+            .filter(created_by=user)
+            .select_related("course", "subject")
+            .order_by("start_time")
+        )
 
 
 @api_view(["POST"])
@@ -46,10 +93,10 @@ def join_live_session(request, session_id):
         if not is_enrolled:
             return Response({"detail": "Not enrolled"}, status=403)
 
-        if now < session.start_time - timezone.timedelta(minutes=10):
+        if now < session.start_time - timedelta(minutes=10):
             return Response({"detail": "Too early to join"}, status=403)
 
-        token = generate_livekit_token(user, session, is_teacher=False)
+        is_teacher = False
 
     # TEACHER
     elif user.has_role("teacher"):
@@ -57,22 +104,28 @@ def join_live_session(request, session_id):
         if not session.subject.teachers.filter(id=user.id).exists():
             return Response({"detail": "Not assigned to this subject"}, status=403)
 
-        token = generate_livekit_token(user, session, is_teacher=True)
+        is_teacher = True
 
     else:
         return Response({"detail": "Unauthorized role"}, status=403)
+
+    token = generate_livekit_token(
+        user=user,
+        session=session,
+        is_teacher=is_teacher,
+    )
 
     return Response({
         "livekit_url": settings.LIVEKIT_URL,
         "token": token,
         "room": session.room_name,
+        "role": "teacher" if is_teacher else "student",
     })
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_live_session(request):
-
     serializer = LiveSessionCreateSerializer(
         data=request.data,
         context={"request": request}
@@ -108,31 +161,30 @@ def livekit_webhook(request):
             request.headers.get("Authorization"),
         )
 
-        logger.info(f"LiveKit event received: {event.event}")
+        logger.info(f"LiveKit event: {event.event}")
 
-        if event.event == "participant_joined":
-            _handle_participant_join(event)
+        handlers = {
+            "participant_joined": _handle_participant_join,
+            "participant_left": _handle_participant_left,
+            "room_started": _handle_room_started,
+            "room_finished": _handle_room_finished,
+        }
 
-        elif event.event == "participant_left":
-            _handle_participant_left(event)
-
-        elif event.event == "room_started":
-            _handle_room_started(event)
-
-        elif event.event == "room_finished":
-            _handle_room_finished(event)
+        handler = handlers.get(event.event)
+        if handler:
+            handler(event)
 
         return HttpResponse(status=200)
 
-    except Exception as e:
-        logger.error(f"Webhook error: {str(e)}")
+    except Exception:
+        logger.exception("Webhook error")
         return HttpResponse(status=400)
 
 
 @transaction.atomic
 def _handle_participant_join(event):
     room_name = event.room.name
-    identity = event.participant.identity
+    identity = str(event.participant.identity)
 
     session = LiveSession.objects.filter(room_name=room_name).first()
     if not session:
@@ -148,7 +200,7 @@ def _handle_participant_join(event):
 @transaction.atomic
 def _handle_participant_left(event):
     room_name = event.room.name
-    identity = event.participant.identity
+    identity = str(event.participant.identity)
 
     session = LiveSession.objects.filter(room_name=room_name).first()
     if not session:
