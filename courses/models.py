@@ -26,12 +26,6 @@ class Subject(models.Model):
 
     name = models.CharField(max_length=100)
 
-    teachers = models.ManyToManyField(
-        settings.AUTH_USER_MODEL,
-        related_name="teaching_subjects",
-        blank=True,
-    )
-
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
