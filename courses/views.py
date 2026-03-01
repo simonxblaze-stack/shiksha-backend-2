@@ -146,15 +146,33 @@ class SubjectDashboardView(APIView):
             id=subject_id
         )
 
-        if not Enrollment.objects.filter(
-            user=user,
-            course=subject.course,
-            status="ACTIVE"
-        ).exists():
-            return Response(
-                {"detail": "Not enrolled."},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        # =========================
+        # TEACHER ACCESS
+        # =========================
+        if user.has_role("TEACHER"):
+            is_assigned = subject.subject_teachers.filter(
+                teacher=user
+            ).exists()
+
+            if not is_assigned:
+                return Response(
+                    {"detail": "Not assigned to this subject."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        # =========================
+        # STUDENT ACCESS
+        # =========================
+        else:
+            if not Enrollment.objects.filter(
+                user=user,
+                course=subject.course,
+                status=Enrollment.STATUS_ACTIVE
+            ).exists():
+                return Response(
+                    {"detail": "Not enrolled."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
         # =========================
         # ASSIGNMENTS
@@ -166,11 +184,15 @@ class SubjectDashboardView(APIView):
 
         total_assignments = assignments.count()
 
-        completed_assignments = assignments.filter(
-            submissions__student=user
-        ).distinct().count()
-
-        pending_assignments = total_assignments - completed_assignments
+        # For teachers we don't calculate completed/pending
+        if user.has_role("STUDENT"):
+            completed_assignments = assignments.filter(
+                submissions__student=user
+            ).distinct().count()
+            pending_assignments = total_assignments - completed_assignments
+        else:
+            completed_assignments = 0
+            pending_assignments = total_assignments
 
         # =========================
         # QUIZZES
@@ -183,12 +205,15 @@ class SubjectDashboardView(APIView):
 
         total_quizzes = quizzes.count()
 
-        completed_quizzes = quizzes.filter(
-            attempts__student=user,
-            attempts__status="SUBMITTED"
-        ).distinct().count()
-
-        pending_quizzes = total_quizzes - completed_quizzes
+        if user.has_role("STUDENT"):
+            completed_quizzes = quizzes.filter(
+                attempts__student=user,
+                attempts__status="SUBMITTED"
+            ).distinct().count()
+            pending_quizzes = total_quizzes - completed_quizzes
+        else:
+            completed_quizzes = 0
+            pending_quizzes = total_quizzes
 
         serializer = SubjectSerializer(subject)
 
