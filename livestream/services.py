@@ -1,5 +1,6 @@
 from livekit.api import AccessToken, VideoGrants
 from datetime import timedelta
+from django.conf import settings
 
 
 def generate_livekit_token(user, session, is_teacher=False):
