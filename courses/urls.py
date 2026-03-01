@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import MyEnrolledCoursesView, CourseSubjectsView
-
+from .views import TeacherMyClassesView
 # update
 from .views import (
     CreateCourseView,
@@ -23,4 +23,9 @@ urlpatterns = [
     path("subject/<uuid:subject_id>/", SubjectDetailView.as_view()),
     path("subjects/<uuid:subject_id>/dashboard/", SubjectDashboardView.as_view()
          ),
+
+
+
+    path("teacher/my-classes/", TeacherMyClassesView.as_view()),
+
 ]
