@@ -1,3 +1,4 @@
+from rest_framework.exceptions import PermissionDenied
 from rest_framework import generics
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -396,4 +397,36 @@ class TeacherQuizAttemptsView(generics.ListAPIView):
 
         return quiz.attempts.filter(
             status=QuizAttempt.STATUS_SUBMITTED
+        )
+
+
+class TeacherDeleteQuizView(APIView):
+    permission_classes = [IsAuthenticated, IsEmailVerified]
+
+    def delete(self, request, pk):
+        quiz = get_object_or_404(
+            Quiz.objects.select_related("subject"),
+            pk=pk
+        )
+
+        # 🔐 Role check
+        if not request.user.has_role("teacher"):
+            raise PermissionDenied("Only teachers allowed.")
+
+        # 🔐 Ownership check
+        if quiz.created_by != request.user:
+            raise PermissionDenied("You did not create this quiz.")
+
+        # 🔐 Prevent deleting published quizzes with attempts
+        if quiz.is_published and quiz.attempts.exists():
+            return Response(
+                {"detail": "Cannot delete quiz with student attempts."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        quiz.delete()
+
+        return Response(
+            {"detail": "Quiz deleted successfully."},
+            status=status.HTTP_204_NO_CONTENT
         )
