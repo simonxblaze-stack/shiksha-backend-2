@@ -24,7 +24,7 @@ def assignment_created(sender, instance, created, **kwargs):
 
     for student_id in students:
         create_activity(
-            user_id=student_id,
+            user=student_id,
             obj=instance,
             type=Activity.TYPE_ASSIGNMENT,
             title=f"New assignment: {instance.title}",
@@ -47,7 +47,7 @@ def quiz_published(sender, instance, created, **kwargs):
 
     for student_id in students:
         create_activity(
-            user_id=student_id,
+            user=student_id,
             obj=instance,
             type=Activity.TYPE_QUIZ,
             title=f"Quiz available: {instance.title}",
@@ -70,7 +70,7 @@ def session_created(sender, instance, created, **kwargs):
 
     for student_id in students:
         create_activity(
-            user_id=student_id,
+            user=student_id,
             obj=instance,
             type=Activity.TYPE_SESSION,
             title=f"Live session scheduled: {instance.title}",
