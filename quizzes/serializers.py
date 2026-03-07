@@ -130,11 +130,12 @@ class QuizDashboardSerializer(serializers.ModelSerializer):
     course_title = serializers.CharField(
         source="subject.course.title", read_only=True)
 
-    # 🔥 FIXED (removed profile dependency)
     teacher_name = serializers.CharField(
         source="created_by.email",
         read_only=True
     )
+
+    questions_count = serializers.SerializerMethodField()
 
     status = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
@@ -147,11 +148,16 @@ class QuizDashboardSerializer(serializers.ModelSerializer):
             "subject_name",
             "course_title",
             "teacher_name",
+            "created_at",     
             "due_date",
             "total_marks",
+            "questions_count", 
             "status",
             "score",
         ]
+
+    def get_questions_count(self, obj):
+        return obj.questions.count()
 
     def get_status(self, obj):
         user = self.context["request"].user
