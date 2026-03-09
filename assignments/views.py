@@ -205,18 +205,12 @@ class TeacherCreateAssignmentView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        serializer = TeacherAssignmentCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        chapter = get_object_or_404(
-            Chapter.objects.select_related("subject"),
-            id=serializer.validated_data["chapter_id"]
+        serializer = TeacherAssignmentCreateSerializer(
+            data=request.data,
+            context={"request": request}
         )
 
-        if not chapter.subject.subject_teachers.filter(
-            teacher=user
-        ).exists():
-            raise PermissionDenied("Not assigned to this subject.")
+        serializer.is_valid(raise_exception=True)
 
         assignment = serializer.save()
 
