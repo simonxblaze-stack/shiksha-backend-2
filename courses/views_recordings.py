@@ -1,3 +1,5 @@
+from django.conf import settings
+import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -68,10 +70,26 @@ class CreateVideoSlotView(APIView):
 
         title = request.data.get("title")
 
-        video = create_video(title)
+        url = f"https://video.bunnycdn.com/library/{settings.BUNNY_LIBRARY_ID}/videos"
+
+        headers = {
+            "AccessKey": settings.BUNNY_API_KEY,
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "title": title
+        }
+
+        r = requests.post(url, json=payload, headers=headers)
+
+        if r.status_code not in [200, 201]:
+            return Response({"error": r.text}, status=500)
+
+        data = r.json()
 
         return Response({
-            "video_id": video["guid"]
+            "video_id": data["guid"]
         })
 
 
