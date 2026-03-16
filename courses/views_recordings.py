@@ -1,5 +1,5 @@
-from .serializers import RecordingSerializer
-from .models import Recording
+
+from .models_recordings import SessionRecording
 from django.conf import settings
 import requests
 from rest_framework.views import APIView
@@ -153,13 +153,15 @@ class SaveRecordingView(APIView):
 
 class RecordingDetailView(APIView):
 
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, recording_id):
 
         recording = get_object_or_404(
-            Recording,
+            SessionRecording,
             id=recording_id
         )
 
-        serializer = RecordingSerializer(recording)
+        serializer = SessionRecordingSerializer(recording)
 
         return Response(serializer.data)
