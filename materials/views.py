@@ -204,3 +204,24 @@ class SubjectMaterials(APIView):
 
 # material tih app hi study material upload na app anita tah hian teacher ho upload na awm a api a awm a tacher ho in an upload tawh list view na a awm bawk a...chuan
 # Student side ah anfrotend end code ah student ho tana a student mater subject wise a view na API ( eg. views siam sak ve a ngai)
+
+
+class StudentSubjectMaterials(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, subject_id):
+
+        subject = get_object_or_404(Subject, id=subject_id)
+
+        materials = (
+            StudyMaterial.objects
+            .filter(chapter__subject=subject)
+            .select_related("chapter")
+            .prefetch_related("files")
+            .order_by("-created_at")
+        )
+
+        serializer = StudyMaterialSerializer(materials, many=True)
+
+        return Response(serializer.data)

@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import ChapterMaterials, UploadStudyMaterial, DeleteStudyMaterial, SubjectMaterials
+from .views import ChapterMaterials, UploadStudyMaterial, DeleteStudyMaterial, SubjectMaterials, StudentSubjectMaterials
 urlpatterns = [
 
 
@@ -21,6 +21,10 @@ urlpatterns = [
     path(
         "materials/<uuid:material_id>/",
         DeleteStudyMaterial.as_view(),
+    ),
+    path(
+        "student/subjects/<uuid:subject_id>/materials/",
+        StudentSubjectMaterials.as_view(),
     ),
 
 ]
