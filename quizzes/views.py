@@ -25,6 +25,7 @@ from .serializers import (
     QuizDetailSerializer,
     QuizResultSerializer,
     TeacherQuizAnalyticsSerializer,
+    TeacherQuizAttemptSerializer,
 
 )
 
@@ -464,7 +465,7 @@ class TeacherSubjectQuizListView(generics.ListAPIView):
 
 class TeacherQuizAttemptsView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, IsEmailVerified]
-    serializer_class = QuizResultSerializer   
+    serializer_class = TeacherQuizAttemptSerializer   
 
     def get_queryset(self):
         user = self.request.user
@@ -488,6 +489,6 @@ class TeacherQuizAttemptsView(generics.ListAPIView):
         return (
             QuizAttempt.objects
             .filter(quiz=quiz, status=QuizAttempt.STATUS_SUBMITTED)
-            .select_related("student")
+            .select_related("student", "student__profile")
             .order_by("-submitted_at")
         )

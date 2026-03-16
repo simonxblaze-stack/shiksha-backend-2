@@ -424,3 +424,8 @@ class TeacherQuizAnalyticsSerializer(serializers.ModelSerializer):
 
     def get_is_expired(self, obj):
         return obj.due_date <= timezone.now()
+    
+
+    from rest_framework import serializers
+from .models import QuizAttempt
+
