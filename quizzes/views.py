@@ -213,7 +213,9 @@ class SubmitQuizView(APIView):
             {
                 "detail": "Quiz submitted successfully.",
                 "score": attempt.score,
-                "total_marks": quiz.total_marks,
+                "total_marks": quiz.questions.aggregate(
+                     total=models.Sum("marks")
+                )["total"] or 0,
             },
             status=status.HTTP_200_OK,
         )
@@ -528,7 +530,9 @@ class TeacherQuizAttemptDetailView(APIView):
         return Response({
             "student_name": attempt.student.profile.full_name,
             "score": attempt.score,
-            "total": attempt.quiz.total_marks,
+            "total": attempt.quiz.questions.aggregate(
+                    total=models.Sum("marks")
+                    )["total"] or 0,
             "submitted_at": attempt.submitted_at,
             "questions": result_questions,
         })
