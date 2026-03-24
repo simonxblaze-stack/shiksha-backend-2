@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "livestream.apps.LivestreamConfig",
     "dashboard",
     "activity.apps.ActivityConfig",
+    "StudyMaterials"
 ]
 
 MIDDLEWARE = [
