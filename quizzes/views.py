@@ -341,6 +341,8 @@ class StudentQuizSubjectsView(APIView):
         return Response(list(subjects_map.values()))
 
 
+    from .serializers import TeacherQuizListSerializer
+
 class TeacherSubjectQuizListView(generics.ListAPIView):
     serializer_class = TeacherQuizListSerializer
     permission_classes = [IsAuthenticated, IsEmailVerified]
@@ -429,9 +431,8 @@ class TeacherDeleteQuizView(APIView):
             status=status.HTTP_204_NO_CONTENT
         )
 
-    from .serializers import TeacherQuizListSerializer
 
-    permission_classes = [IsAuthenticated, IsEmailVerified]
+    
 
     def get_queryset(self):
         user = self.request.user
