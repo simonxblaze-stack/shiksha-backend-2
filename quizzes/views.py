@@ -428,9 +428,13 @@ class TeacherDeleteQuizView(APIView):
         )
 
 
+<<<<<<< HEAD
+    
+=======
 class TeacherSubjectQuizListView(generics.ListAPIView):
     serializer_class = TeacherQuizAnalyticsSerializer
     permission_classes = [IsAuthenticated, IsEmailVerified]
+>>>>>>> 59a100919f911c9ab055145c96e0b0557be78c05
 
     def get_queryset(self):
         user = self.request.user
