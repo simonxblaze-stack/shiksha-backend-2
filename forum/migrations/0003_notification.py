@@ -7,7 +7,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ("forum", "0002_tag_reply_reply_to_forumpost_tags"),
+        ("forum", "0001_initial"),
     ]
 
     operations = [
