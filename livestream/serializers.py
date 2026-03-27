@@ -8,16 +8,6 @@ from .models import LiveSession
 from courses.models import Subject
 
 
-from rest_framework import serializers
-from django.utils import timezone
-from django.db.models import Q
-from datetime import timedelta
-import uuid
-
-from .models import LiveSession
-from courses.models import Subject
-
-
 class LiveSessionCreateSerializer(serializers.ModelSerializer):
     subject_id = serializers.UUIDField(write_only=True)
 
@@ -37,13 +27,13 @@ class LiveSessionCreateSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         user = request.user
 
-        # ✅ 1️⃣ Role Check (FIXED TO MATCH YOUR SYSTEM)
+        # ✅ Role check
         if not user.has_role("TEACHER"):
             raise serializers.ValidationError(
                 {"non_field_errors": ["Only teachers can schedule sessions."]}
             )
 
-        # ✅ 2️⃣ Subject Validation
+        # ✅ Subject validation
         try:
             subject = Subject.objects.select_related("course").get(
                 id=data["subject_id"]
@@ -53,7 +43,7 @@ class LiveSessionCreateSerializer(serializers.ModelSerializer):
                 {"subject_id": ["Invalid subject."]}
             )
 
-        # ✅ 3️⃣ Subject Assignment Check
+        # ✅ Assignment check
         if not subject.subject_teachers.filter(teacher=user).exists():
             raise serializers.ValidationError(
                 {"non_field_errors": ["You are not assigned to this subject."]}
@@ -63,7 +53,7 @@ class LiveSessionCreateSerializer(serializers.ModelSerializer):
         end_time = data["end_time"]
         now = timezone.now()
 
-        # ✅ 4️⃣ Time Validation
+        # ✅ Time validation
         if start_time >= end_time:
             raise serializers.ValidationError(
                 {"end_time": ["End time must be after start time."]}
@@ -74,7 +64,7 @@ class LiveSessionCreateSerializer(serializers.ModelSerializer):
                 {"start_time": ["Cannot schedule a session in the past."]}
             )
 
-        # ✅ 5️⃣ Overlapping Protection
+        # ✅ Overlap check
         overlap_exists = LiveSession.objects.filter(
             subject=subject
         ).filter(
@@ -85,7 +75,8 @@ class LiveSessionCreateSerializer(serializers.ModelSerializer):
         if overlap_exists:
             raise serializers.ValidationError(
                 {"non_field_errors": [
-                    "This session overlaps with an existing session."]}
+                    "This session overlaps with an existing session."
+                ]}
             )
 
         self._validated_subject = subject
@@ -131,6 +122,11 @@ class LiveSessionListSerializer(serializers.ModelSerializer):
         if obj.status == LiveSession.STATUS_CANCELLED:
             return "CANCELLED"
 
+        # 🚨 teacher left logic
+        if obj.teacher_left_at:
+            if now > obj.teacher_left_at + timedelta(minutes=10):
+                return "COMPLETED"
+
         if now < obj.start_time:
             return "SCHEDULED"
 
@@ -145,12 +141,18 @@ class LiveSessionListSerializer(serializers.ModelSerializer):
         if obj.status == LiveSession.STATUS_CANCELLED:
             return False
 
-        # Teacher can always join
+        # 🚨 block if teacher left long ago
+        if obj.teacher_left_at:
+            if now > obj.teacher_left_at + timedelta(minutes=10):
+                return False
+
         request = self.context.get("request")
+
+        # Teacher can always join
         if request and request.user.has_role("TEACHER"):
             return True
 
-        # Students can join 10 minutes before start
+        # Students window
         return (
             obj.start_time - timedelta(minutes=10)
             <= now

@@ -40,17 +40,29 @@ class StudentLiveSessionListView(generics.ListAPIView):
         if not user.has_role("STUDENT"):
             raise PermissionDenied("Only students allowed.")
 
+        course_id = self.request.query_params.get("course_id")
+        subject_id = self.request.query_params.get("subject_id")
+
         active_courses = Enrollment.objects.filter(
             user=user,
             status=Enrollment.STATUS_ACTIVE
         ).values_list("course_id", flat=True)
 
-        return (
+        queryset = (
             LiveSession.objects
             .filter(course_id__in=active_courses)
             .select_related("course", "subject", "created_by")
-            .order_by("start_time")
         )
+
+        # ✅ course filter
+        if course_id:
+            queryset = queryset.filter(course_id=course_id)
+
+         # ✅ subject filter (FIXED POSITION)
+        if subject_id:
+            queryset = queryset.filter(subject_id=subject_id)
+
+        return queryset.order_by("start_time")
 
 
 # =========================
@@ -92,13 +104,25 @@ def join_live_session(request, session_id):
     session = get_object_or_404(LiveSession, id=session_id)
     now = timezone.now()
 
+    # 🚨 AUTO EXPIRE (NEW)
+    if session.teacher_left_at:
+        if now > session.teacher_left_at + timedelta(minutes=10):
+            session.status = LiveSession.STATUS_COMPLETED
+            session.save()
+            return Response(
+                {"detail": "Session ended (teacher left)"},
+                status=403
+            )
+
     if session.status == LiveSession.STATUS_CANCELLED:
         return Response({"detail": "Session cancelled"}, status=400)
 
     if now > session.end_time:
         return Response({"detail": "Session ended"}, status=403)
 
+    # =========================
     # STUDENT
+    # =========================
     if user.has_role("STUDENT"):
 
         is_enrolled = Enrollment.objects.filter(
@@ -115,7 +139,9 @@ def join_live_session(request, session_id):
 
         is_teacher = False
 
+    # =========================
     # TEACHER
+    # =========================
     elif user.has_role("TEACHER"):
 
         if not session.subject.subject_teachers.filter(teacher=user).exists():
@@ -126,22 +152,19 @@ def join_live_session(request, session_id):
     else:
         return Response({"detail": "Unauthorized role"}, status=403)
 
-    # Generate LiveKit token safely
+    # =========================
+    # TOKEN
+    # =========================
     try:
         token = generate_livekit_token(
             user=user,
             session=session,
             is_teacher=is_teacher,
         )
-    except Exception as e:
+    except Exception:
         logger.exception("LiveKit token generation failed")
         return Response({"detail": "LiveKit error"}, status=500)
-    print("DJANGO URL:", settings.LIVEKIT_URL)
-    print("DJANGO KEY:", settings.LIVEKIT_API_KEY)
-    print("DJANGO SECRET:", settings.LIVEKIT_API_SECRET)
-    print("KEY:", settings.LIVEKIT_API_KEY)
-    print("SECRET:", settings.LIVEKIT_API_SECRET)
-    print("URL:", settings.LIVEKIT_URL)
+
     return Response({
         "livekit_url": settings.LIVEKIT_URL,
         "token": token,
@@ -220,11 +243,23 @@ def _handle_participant_join(event):
     if not session:
         return
 
+    user_id = str(event.participant.identity)
+
     LiveSessionAttendance.objects.update_or_create(
         session=session,
-        user_id=str(event.participant.identity),
+        user_id=user_id,
         defaults={"joined_at": timezone.now()}
     )
+
+    # 🚨 If teacher joins → reset leave timer
+    if session.created_by and str(session.created_by.id) == user_id:
+        session.teacher_left_at = None
+
+        # 🚨 mark session LIVE
+        if session.status != LiveSession.STATUS_LIVE:
+            session.status = LiveSession.STATUS_LIVE
+
+        session.save()
 
 
 @transaction.atomic
@@ -233,14 +268,21 @@ def _handle_participant_left(event):
     if not session:
         return
 
+    user_id = str(event.participant.identity)
+
     attendance = LiveSessionAttendance.objects.filter(
         session=session,
-        user_id=str(event.participant.identity)
+        user_id=user_id
     ).first()
 
     if attendance:
         attendance.left_at = timezone.now()
         attendance.save()
+
+    # 🚨 teacher left → start expiry timer
+    if session.created_by and str(session.created_by.id) == user_id:
+        session.teacher_left_at = timezone.now()
+        session.save()
 
 
 def _handle_room_started(event):

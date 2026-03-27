@@ -18,6 +18,9 @@ class LiveSession(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
+    # 🚨 used for auto-expire logic
+    teacher_left_at = models.DateTimeField(null=True, blank=True)
+
     course = models.ForeignKey(
         "courses.Course",
         on_delete=models.CASCADE,
@@ -48,21 +51,29 @@ class LiveSession(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
+        blank=True,
         related_name="created_live_sessions",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        ordering = ["start_time"]
         indexes = [
             models.Index(fields=["course"]),
             models.Index(fields=["subject"]),
             models.Index(fields=["start_time"]),
             models.Index(fields=["status"]),
+            models.Index(fields=["course", "start_time"]),
+            models.Index(fields=["subject", "start_time"]),
         ]
 
     def __str__(self):
         return f"{self.title} ({self.subject.name})"
+
+    # ✅ useful for UI / analytics
+    def duration(self):
+        return self.end_time - self.start_time
 
 
 class LiveSessionAttendance(models.Model):
@@ -84,4 +95,11 @@ class LiveSessionAttendance(models.Model):
         unique_together = ("session", "user")
         indexes = [
             models.Index(fields=["session", "user"]),
+            models.Index(fields=["session", "joined_at"]),
         ]
+
+    # ✅ duration tracking (important for analytics)
+    def duration(self):
+        if self.joined_at and self.left_at:
+            return self.left_at - self.joined_at
+        return None
