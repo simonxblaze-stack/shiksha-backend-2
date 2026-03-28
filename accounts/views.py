@@ -1,3 +1,4 @@
+from accounts.email_utils import send_gmail
 from rest_framework import status
 from rest_framework.permissions import BasePermission, IsAuthenticated, AllowAny, IsAdminUser
 from django.conf import settings
@@ -68,6 +69,7 @@ class MeView(APIView):
 # SIGNUP — PUBLIC
 # =====================================================
 
+
 class SignupView(APIView):
     permission_classes = [AllowAny]
 
@@ -77,30 +79,39 @@ class SignupView(APIView):
 
         user = serializer.save()
 
+        # 🔥 DELETE OLD TOKENS (important)
+        EmailVerificationToken.objects.filter(user=user).delete()
+
         token = EmailVerificationToken.generate(user)
 
         verify_link = (
-            f"https://api.shikshacom.com/api/verify-email/"
-            f"?token={token.token}"
+            f"https://api.shikshacom.com/api/verify-email/?token={token.token}"
         )
 
-        # Enable in production
-        # send_mail(
-        #     subject="Verify your email",
-        #     message=f"Click to verify your email:\n{verify_link}",
-        #     from_email=settings.DEFAULT_FROM_EMAIL,
-        #     recipient_list=[user.email],
-        # )
+        html = f"""
+        <h2>Verify your email</h2>
+        <p>Click the button below:</p>
+        <a href="{verify_link}" style="padding:10px 15px;background:#2563eb;color:white;text-decoration:none;border-radius:5px;">
+            Verify Email
+        </a>
+        """
+
+        send_gmail(
+            to=user.email,
+            subject="Verify your email",
+            message_text=f"Click to verify:\n{verify_link}",
+            html=html,
+        )
 
         return Response(
             {"detail": "Signup successful. Please verify your email."},
             status=status.HTTP_201_CREATED,
         )
 
-
 # =====================================================
 # LOGIN — JWT ISSUED ONLY IF VERIFIED
 # =====================================================
+
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -174,9 +185,7 @@ class VerifyEmailView(APIView):
         token_value = request.query_params.get("token")
 
         if not token_value:
-            return redirect(
-                "https://shikshacom.com/email-verified?status=failed"
-            )
+            return redirect("https://shikshacom.com/email-verified?status=failed")
 
         try:
             token = EmailVerificationToken.objects.select_related("user").get(
@@ -185,9 +194,7 @@ class VerifyEmailView(APIView):
             )
         except EmailVerificationToken.DoesNotExist:
             log_auth_event(request, AuthEvent.EVENT_VERIFY_EMAIL_FAILED)
-            return redirect(
-                "https://shikshacom.com/email-verified?status=failed"
-            )
+            return redirect("https://shikshacom.com/email-verified?status=failed")
 
         user = token.user
 
@@ -204,9 +211,7 @@ class VerifyEmailView(APIView):
             user=user,
         )
 
-        return redirect(
-            "https://shikshacom.com/email-verified?status=success"
-        )
+        return redirect("https://shikshacom.com/email-verified?status=success")
 
 
 # =====================================================
@@ -227,18 +232,26 @@ class ResendVerificationEmailView(APIView):
         if user.is_verified:
             raise ValidationError("Email already verified.")
 
+        # 🔥 DELETE OLD TOKENS
+        EmailVerificationToken.objects.filter(user=user).delete()
+
         token = EmailVerificationToken.generate(user)
 
         verify_link = (
-            f"https://api.shikshacom.com/api/verify-email/"
-            f"?token={token.token}"
+            f"https://api.shikshacom.com/api/verify-email/?token={token.token}"
         )
 
-        send_mail(
+        html = f"""
+        <h2>Verify your email</h2>
+        <p>Click below:</p>
+        <a href="{verify_link}">Verify Email</a>
+        """
+
+        send_gmail(
+            to=user.email,
             subject="Verify your email",
-            message=f"Click to verify your email:\n{verify_link}",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
+            message_text=f"Click to verify:\n{verify_link}",
+            html=html,
         )
 
         log_auth_event(
@@ -249,10 +262,10 @@ class ResendVerificationEmailView(APIView):
 
         return Response({"detail": "Verification email resent."})
 
-
 # =====================================================
 # REQUEST TEACHER ROLE
 # =====================================================
+
 
 class RequestTeacherRoleView(APIView):
     permission_classes = [IsAuthenticated, IsEmailVerified]
