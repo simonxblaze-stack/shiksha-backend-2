@@ -27,7 +27,7 @@ class DashboardView(APIView):
 
         user = request.user
 
-        # 🔥 DETECT ROLE (simple + safe)
+        # 🔥 detect student
         is_student = Enrollment.objects.filter(
             user=user,
             status=Enrollment.STATUS_ACTIVE
@@ -79,10 +79,11 @@ class DashboardView(APIView):
             )
 
         # =========================
-        # 👨‍🏫 TEACHER DASHBOARD
+        # 👨‍🏫 TEACHER DASHBOARD (FIXED)
         # =========================
         else:
 
+            # ✅ Live sessions (correct)
             sessions = (
                 LiveSession.objects
                 .filter(
@@ -93,13 +94,18 @@ class DashboardView(APIView):
                 .order_by("start_time")[:6]
             )
 
+            # ✅ Assignments (FIXED RELATION)
             assignments = (
                 Assignment.objects
-                .filter(created_by=user)
+                .filter(
+                    chapter__subject__subject_teachers__teacher=user
+                )
                 .select_related("chapter__subject")
+                .distinct()
                 .order_by("due_date")[:5]
             )
 
+            # ✅ Quizzes (usually has created_by)
             quizzes = (
                 Quiz.objects
                 .filter(
@@ -111,7 +117,7 @@ class DashboardView(APIView):
             )
 
         # =========================
-        # 🔔 COMMON (both roles)
+        # 🔔 COMMON
         # =========================
 
         notifications = (
