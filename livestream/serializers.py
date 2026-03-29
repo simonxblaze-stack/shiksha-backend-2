@@ -121,6 +121,9 @@ class LiveSessionListSerializer(serializers.ModelSerializer):
     can_join = serializers.SerializerMethodField()
     computed_status = serializers.SerializerMethodField()
 
+    subject_id = serializers.UUIDField(source="subject.id", read_only=True)
+    subject_name = serializers.CharField(source="subject.name", read_only=True)
+
     class Meta:
         model = LiveSession
         fields = [
@@ -131,6 +134,8 @@ class LiveSessionListSerializer(serializers.ModelSerializer):
             "computed_status",
             "teacher",
             "can_join",
+            "subject_id",
+            "subject_name",
         ]
 
     def get_computed_status(self, obj):
