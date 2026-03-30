@@ -66,10 +66,7 @@ class StudentLiveSessionListView(generics.ListAPIView):
         now = timezone.now()
         cutoff = now - timedelta(hours=24)
 
-        queryset = queryset.filter(
-            Q(status__in=[LiveSession.STATUS_SCHEDULED, LiveSession.STATUS_LIVE]) |
-            Q(status=LiveSession.STATUS_COMPLETED, end_time__gte=cutoff)
-        )
+        queryset = queryset.filter(end_time__gte=cutoff)
 
         return queryset.order_by("start_time")
 
@@ -101,10 +98,7 @@ class TeacherLiveSessionListView(generics.ListAPIView):
         return (
             LiveSession.objects
             .filter(subject_id=subject_id)
-            .filter(
-                Q(status__in=[LiveSession.STATUS_SCHEDULED, LiveSession.STATUS_LIVE]) |
-                Q(status=LiveSession.STATUS_COMPLETED, end_time__gte=cutoff)
-            )
+            .filter(end_time__gte=cutoff)
             .select_related("course", "subject", "created_by")
             .order_by("start_time")
         )
