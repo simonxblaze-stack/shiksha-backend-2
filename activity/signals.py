@@ -1,14 +1,18 @@
-from livestream.models import LiveSession
-from quizzes.models import Quiz
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from assignments.models import Assignment
+from quizzes.models import Quiz
+from livestream.models import LiveSession
 from enrollments.models import Enrollment
+
 from .services import create_activity
 from .models import Activity
 
 
+# =========================
+# ASSIGNMENT CREATED
+# =========================
 @receiver(post_save, sender=Assignment)
 def assignment_created(sender, instance, created, **kwargs):
 
@@ -22,6 +26,7 @@ def assignment_created(sender, instance, created, **kwargs):
         status=Enrollment.STATUS_ACTIVE
     ).select_related("user")
 
+    # 🔥 notify students
     for enrollment in students:
         create_activity(
             user=enrollment.user,
@@ -31,10 +36,24 @@ def assignment_created(sender, instance, created, **kwargs):
             due_date=instance.due_date
         )
 
+    # 🔥 notify teacher
+    if instance.created_by:
+        create_activity(
+            user=instance.created_by,
+            obj=instance,
+            type=Activity.TYPE_ASSIGNMENT,
+            title=f"You created: {instance.title}",
+            due_date=instance.due_date
+        )
 
+
+# =========================
+# QUIZ PUBLISHED
+# =========================
 @receiver(post_save, sender=Quiz)
 def quiz_published(sender, instance, created, **kwargs):
 
+    # only when published
     if not instance.is_published:
         return
 
@@ -45,6 +64,7 @@ def quiz_published(sender, instance, created, **kwargs):
         status=Enrollment.STATUS_ACTIVE
     ).select_related("user")
 
+    # 🔥 notify students
     for enrollment in students:
         create_activity(
             user=enrollment.user,
@@ -54,25 +74,49 @@ def quiz_published(sender, instance, created, **kwargs):
             due_date=instance.due_date
         )
 
+    # 🔥 notify teacher
+    if instance.created_by:
+        create_activity(
+            user=instance.created_by,
+            obj=instance,
+            type=Activity.TYPE_QUIZ,
+            title=f"You published quiz: {instance.title}",
+            due_date=instance.due_date
+        )
 
+
+# =========================
+# LIVE SESSION CREATED
+# =========================
 @receiver(post_save, sender=LiveSession)
 def session_created(sender, instance, created, **kwargs):
 
     if not created:
         return
 
-    course = instance.course
+    course = instance.course  # ✅ correct
 
     students = Enrollment.objects.filter(
         course=course,
         status=Enrollment.STATUS_ACTIVE
     ).select_related("user")
 
+    # 🔥 notify students
     for enrollment in students:
         create_activity(
             user=enrollment.user,
             obj=instance,
             type=Activity.TYPE_SESSION,
             title=f"Live session scheduled: {instance.title}",
+            due_date=instance.start_time
+        )
+
+    # 🔥 notify teacher
+    if instance.created_by:
+        create_activity(
+            user=instance.created_by,
+            obj=instance,
+            type=Activity.TYPE_SESSION,
+            title=f"You scheduled session: {instance.title}",
             due_date=instance.start_time
         )
