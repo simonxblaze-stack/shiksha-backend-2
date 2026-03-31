@@ -364,7 +364,15 @@ class SubjectAssignmentsView(APIView):
                 "title": assignment.title,
                 "due_date": assignment.due_date,
                 "status": status,
-                "subject": assignment.chapter.subject.name
+                "subject": assignment.chapter.subject.name,
+
+                # ✅ NEW
+                "chapter": assignment.chapter.title,
+                "teacher": (
+                    assignment.chapter.subject.subject_teachers.first().teacher.profile.full_name
+                    if assignment.chapter.subject.subject_teachers.exists()
+                    else None
+                ),
             })
 
         return Response(data)
