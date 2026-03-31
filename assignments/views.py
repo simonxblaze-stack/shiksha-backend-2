@@ -111,12 +111,7 @@ class SubmitAssignmentView(APIView):
                 {"detail": "Not authorized."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-
-        if assignment.due_date < timezone.now():
-            return Response(
-                {"detail": "Assignment expired."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        
 
         file = request.FILES.get("file")
         if not file:
