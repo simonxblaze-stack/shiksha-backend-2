@@ -49,7 +49,12 @@ class AssignmentDetailView(generics.RetrieveAPIView):
 
         queryset = (
             Assignment.objects
-            .select_related("chapter__subject__course")
+            .select_related(
+                "chapter__subject__course"
+            ).prefetch_related(
+                "chapter__subject__subject_teachers__teacher__profile",
+                submission_prefetch
+            )
             .prefetch_related(submission_prefetch)
         )
 

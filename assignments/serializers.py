@@ -85,14 +85,21 @@ class AssignmentDetailSerializer(serializers.ModelSerializer):
     submission_status = serializers.SerializerMethodField()
     submitted_file = serializers.SerializerMethodField()
     submitted_at = serializers.SerializerMethodField()
+    submitted_file_size = serializers.SerializerMethodField()
+
     subject_name = serializers.CharField(
         source="chapter.subject.name",
         read_only=True
     )
+
+    teacher_name = serializers.SerializerMethodField()
+
     course_name = serializers.CharField(
         source="chapter.subject.course.title",
         read_only=True
     )
+
+    file_size = serializers.SerializerMethodField()
 
     class Meta:
         model = Assignment
@@ -101,13 +108,23 @@ class AssignmentDetailSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "attachment",
+            "file_size",          # ✅ NEW
             "due_date",
+            "created_at",         # ✅ NEW
             "subject_name",
+            "teacher_name",       # ✅ NEW
             "course_name",
             "submission_status",
             "submitted_file",
+            "submitted_file_size",  # ✅ NEW
             "submitted_at",
         )
+    def get_teacher_name(self, obj):
+        teachers = obj.chapter.subject.subject_teachers.all()
+        if teachers.exists():
+            teacher = teachers.first().teacher
+            return getattr(teacher.profile, "full_name", "")
+        return ""
 
     def get_submission(self, obj):
         return getattr(obj, "user_submission", None)
@@ -132,6 +149,17 @@ class AssignmentDetailSerializer(serializers.ModelSerializer):
     def get_submitted_at(self, obj):
         submission = self.get_submission(obj)
         return submission.submitted_at if submission else None
+
+    def get_file_size(self, obj):
+        if obj.attachment:
+            return obj.attachment.size
+        return None
+
+    def get_submitted_file_size(self, obj):
+        submission = self.get_submission(obj)
+        if submission and submission.submitted_file:
+            return submission.submitted_file.size
+        return None
 
 
 # ==========================================
