@@ -83,6 +83,7 @@ class AssignmentListSerializer(serializers.ModelSerializer):
 
 class AssignmentDetailSerializer(serializers.ModelSerializer):
     submission_status = serializers.SerializerMethodField()
+    submission_status_label = serializers.SerializerMethodField()
     submitted_file = serializers.SerializerMethodField()
     submitted_at = serializers.SerializerMethodField()
 
@@ -116,14 +117,15 @@ class AssignmentDetailSerializer(serializers.ModelSerializer):
             "description",
             "attachment",
             "due_date",
-            "assigned_on",          # ✅ FIXED
-            "chapter_name",         # ✅ NEW
+            "assigned_on",          
+            "chapter_name",         
             "subject_name",
             "course_name",
-            "teacher_name",         # ✅ NEW
+            "teacher_name",         
             "submission_status",
             "submitted_file",
             "submitted_at",
+            "submission_status_label",
         )
 
     def get_submission(self, obj):
@@ -164,6 +166,16 @@ class AssignmentDetailSerializer(serializers.ModelSerializer):
             return teacher.teacher.profile.full_name
 
         return None
+    
+    def get_submission_status_label(self, obj):
+        submission = self.get_submission(obj)
+
+        if not submission:
+            return None
+
+        if submission.submitted_at <= obj.due_date:
+            return "On time"
+        return "Late"
 
 
 # ==========================================
