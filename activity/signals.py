@@ -36,11 +36,11 @@ def assignment_created(sender, instance, created, **kwargs):
             due_date=instance.due_date
         )
 
-    # 🔥 notify teacher (FIXED)
-    user = getattr(instance, "created_by", None)
-    if user:
+    # 🔥 notify teacher
+    teachers = instance.chapter.subject.subject_teachers.select_related("teacher").all()
+    for st in teachers:
         create_activity(
-            user=user,
+            user=st.teacher,
             obj=instance,
             type=Activity.TYPE_ASSIGNMENT,
             title=f"You created: {instance.title}",
