@@ -218,6 +218,33 @@ def create_live_session(request):
 
 
 # =========================
+# CANCEL SESSION
+# =========================
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def cancel_live_session(request, session_id):
+    user = request.user
+    session = get_object_or_404(LiveSession, id=session_id)
+
+    if not user.has_role("TEACHER"):
+        return Response({"detail": "Only teachers can cancel sessions."}, status=403)
+
+    if session.created_by != user:
+        return Response({"detail": "You can only cancel your own sessions."}, status=403)
+
+    if session.status == LiveSession.STATUS_CANCELLED:
+        return Response({"detail": "Session is already cancelled."}, status=400)
+
+    if session.status == LiveSession.STATUS_COMPLETED:
+        return Response({"detail": "Cannot cancel a completed session."}, status=400)
+
+    session.status = LiveSession.STATUS_CANCELLED
+    session.save()
+
+    return Response({"detail": "Session cancelled successfully."})
+
+
+# =========================
 # LIVEKIT WEBHOOK
 # =========================
 @csrf_exempt

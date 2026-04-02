@@ -18,6 +18,7 @@ from .serializers import CourseSerializer, SubjectSerializer
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from datetime import timedelta
 
 
 # =========================
@@ -235,6 +236,34 @@ class SubjectDashboardView(APIView):
 
         serializer = SubjectSerializer(subject)
 
+        # ── Recordings count ──
+        from courses.models_recordings import SessionRecording
+        recordings_count = SessionRecording.objects.filter(
+            subject=subject
+        ).count()
+
+        # ── Study Materials count ──
+        from materials.models import StudyMaterial
+        study_materials_count = StudyMaterial.objects.filter(
+            chapter__subject=subject
+        ).count()
+
+        # ── Upcoming Live Sessions ──
+        from livestream.models import LiveSession
+        now = timezone.now()
+        upcoming_sessions = list(
+            LiveSession.objects.filter(
+                subject=subject,
+                start_time__gte=now,
+                status__in=[
+                    LiveSession.STATUS_SCHEDULED,
+                    LiveSession.STATUS_LIVE,
+                ],
+            )
+            .order_by("start_time")[:5]
+            .values("id", "title", "start_time", "status")
+        )
+
         return Response({
             "id": subject.id,
             "name": subject.name,
@@ -252,9 +281,11 @@ class SubjectDashboardView(APIView):
                 "total": total_quizzes,
             },
 
-            "recordingsCount": 0,
-            "studyMaterialsCount": 0,
-            "upcomingSessions": [],
+            "recordingsCount": recordings_count,
+            "recordings_count": recordings_count,
+            "studyMaterialsCount": study_materials_count,
+            "study_materials_count": study_materials_count,
+            "upcomingSessions": upcoming_sessions,
 
             "studentsCount": Enrollment.objects.filter(
                 course=subject.course,
