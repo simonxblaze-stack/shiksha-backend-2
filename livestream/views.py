@@ -195,9 +195,9 @@ def join_live_session(request, session_id):
         if session.teacher_left_at:
             diff = now - session.teacher_left_at
 
-            if diff > timedelta(minutes=30):
+            if diff > timedelta(minutes=60):
                 return Response(
-                    {"detail": "Teacher unavailable"},
+                    {"detail": "Session ended"},
                     status=403
                 )
 
@@ -391,7 +391,7 @@ def _handle_participant_left(event):
     # 🔥 TEACHER LEFT (network OR actual)
     if str(session.created_by_id) == user_id:
         session.teacher_left_at = timezone.now()
-        session.status = LiveSession.STATUS_PAUSED
+        session.status = LiveSession.STATUS_RECONNECTING
 
     session.save(update_fields=["teacher_left_at",
                  "status", "last_activity_at"])  # ✅ FIX

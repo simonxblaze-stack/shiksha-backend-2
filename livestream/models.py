@@ -11,7 +11,7 @@ class LiveSession(models.Model):
     STATUS_PAUSED = "PAUSED"
     STATUS_COMPLETED = "COMPLETED"
     STATUS_CANCELLED = "CANCELLED"
-
+    STATUS_RECONNECTING = "RECONNECTING"
     STATUS_CHOICES = [
         (STATUS_SCHEDULED, "Scheduled"),
         (STATUS_WAITING, "Waiting for Teacher"),
@@ -19,6 +19,7 @@ class LiveSession(models.Model):
         (STATUS_PAUSED, "Paused"),
         (STATUS_COMPLETED, "Completed"),
         (STATUS_CANCELLED, "Cancelled"),
+        (STATUS_RECONNECTING, "Reconnecting"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -96,16 +97,23 @@ class LiveSession(models.Model):
         if self.status == self.STATUS_CANCELLED:
             return self.STATUS_CANCELLED
 
-        # 🔥 teacher presence logic (REALITY)
         if self.teacher_left_at:
             diff = now - self.teacher_left_at
 
-            if diff > timedelta(minutes=60):
-                return self.STATUS_COMPLETED
+        # 🔥 NEW SMART LOGIC
 
-            return self.STATUS_PAUSED
+        # 0–10 min → reconnecting
+            if diff <= timedelta(minutes=10):
+                return self.STATUS_RECONNECTING
 
-        if self.status == self.STATUS_LIVE:
+        # 10–60 min → paused
+            if diff <= timedelta(minutes=60):
+                return self.STATUS_PAUSED
+
+        # >60 min → completed
+            return self.STATUS_COMPLETED
+
+        if self.status == self.STATUS_LIVE and not self.teacher_left_at:
             return self.STATUS_LIVE
 
         if now < self.start_time:
