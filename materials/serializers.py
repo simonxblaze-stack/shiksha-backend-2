@@ -6,10 +6,11 @@ class MaterialFileSerializer(serializers.ModelSerializer):
 
     file_name = serializers.SerializerMethodField()
     file_url = serializers.SerializerMethodField()
+    file_size = serializers.SerializerMethodField()  # ✅ added
 
     class Meta:
         model = MaterialFile
-        fields = ["id", "file_url", "file_name"]
+        fields = ["id", "file_url", "file_name", "file_size"]
 
     def get_file_name(self, obj):
         return obj.filename()
@@ -20,13 +21,21 @@ class MaterialFileSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.file.url)
         return obj.file.url
 
+    def get_file_size(self, obj):
+        if obj.file:
+            return round(obj.file.size / (1024 * 1024), 2)  # MB
+        return 0
+
 
 class StudyMaterialSerializer(serializers.ModelSerializer):
 
     files = serializers.SerializerMethodField()
 
+    # ✅ FIXED NAME (important)
+    chapter_name = serializers.SerializerMethodField()
+
     # ✅ NEW FIELD
-    chapter_title = serializers.SerializerMethodField()
+    subject_name = serializers.SerializerMethodField()
 
     class Meta:
         model = StudyMaterial
@@ -35,7 +44,8 @@ class StudyMaterialSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "created_at",
-            "chapter_title",  # ✅ added
+            "chapter_name",
+            "subject_name",
             "files"
         ]
 
@@ -47,8 +57,12 @@ class StudyMaterialSerializer(serializers.ModelSerializer):
             context={"request": request}
         ).data
 
-    # ✅ NEW METHOD
-    def get_chapter_title(self, obj):
+    def get_chapter_name(self, obj):
         if obj.chapter:
             return obj.chapter.title
         return obj.custom_chapter
+
+    def get_subject_name(self, obj):
+        if obj.subject:
+            return obj.subject.name
+        return None
