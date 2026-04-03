@@ -3,7 +3,7 @@ from .serializers import (
     LiveSessionCreateSerializer,
     LiveSessionListSerializer,
 )
-from .services import generate_livekit_token
+from .services.token import generate_livekit_token
 from .models import LiveSession, LiveSessionAttendance
 from enrollments.models import Enrollment
 from livekit.api import WebhookReceiver
