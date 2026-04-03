@@ -1,3 +1,4 @@
+from .models import Stream
 from django.contrib import admin
 from .models import Course, Subject, Chapter, SubjectTeacher
 from .models_recordings import SessionRecording
@@ -140,3 +141,8 @@ class BoardAdmin(admin.ModelAdmin):
         return obj.courses.count()
 
     course_count.short_description = "Courses"
+
+
+@admin.register(Stream)
+class StreamAdmin(admin.ModelAdmin):
+    search_fields = ["name"]
