@@ -7,6 +7,8 @@ from .models import Subject, Course, Board
 class SubjectSerializer(serializers.ModelSerializer):
     teachers = serializers.SerializerMethodField()
     chapters = serializers.SerializerMethodField()   # ✅ added
+    stream_name = serializers.CharField(source="course.stream.name", read_only=True)
+    board = serializers.SerializerMethodField()
 
     class Meta:
         model = Subject
@@ -16,6 +18,8 @@ class SubjectSerializer(serializers.ModelSerializer):
             "order",
             "teachers",
             "chapters",   # ✅ added
+            "stream_name",
+            "board",
         )
 
     def get_teachers(self, obj):
@@ -53,6 +57,15 @@ class SubjectSerializer(serializers.ModelSerializer):
             }
             for ch in obj.chapters.all().order_by("order")
         ]
+
+    def get_board(self, obj):
+        if not obj.course or not obj.course.board:
+            return None
+        return {
+            "id": str(obj.course.board.id),
+            "name": obj.course.board.name,
+            "board_type": obj.course.board.board_type,
+        }
 
 
 class BoardSerializer(serializers.ModelSerializer):

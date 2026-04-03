@@ -138,8 +138,12 @@ class CourseSubjectsView(APIView):
         if not is_enrolled:
             return Response({"detail": "Not enrolled in this course."}, status=403)
 
-        subjects = Subject.objects.filter(
-            course__id=course_id).order_by("order")
+        subjects = (
+            Subject.objects
+            .filter(course__id=course_id)
+            .select_related("course__stream", "course__board")
+            .order_by("order")
+        )
 
         serializer = SubjectSerializer(subjects, many=True)
         return Response(serializer.data)
@@ -156,7 +160,7 @@ class SubjectDetailView(APIView):
         subject = get_object_or_404(
             Subject.objects.prefetch_related(
                 "subject_teachers__teacher__teacher_profile"
-            ),
+            ).select_related("course__stream", "course__board"),
             id=subject_id
         )
 
@@ -177,7 +181,7 @@ class SubjectDashboardView(APIView):
         subject = get_object_or_404(
             Subject.objects.prefetch_related(
                 "subject_teachers__teacher"
-            ),
+            ).select_related("course__stream", "course__board"),
             id=subject_id
         )
 
