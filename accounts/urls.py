@@ -10,6 +10,7 @@ from .views import (
     FormFillupView,
     TeacherListView,
     ValidateStudentIdView,
+    ChangePasswordView,
 )
 
 urlpatterns = [
@@ -21,6 +22,7 @@ urlpatterns = [
     path("resend-verification/", ResendVerificationEmailView.as_view()),
     path("refresh/", RefreshView.as_view()),
     path("form-fillup/", FormFillupView.as_view()),
+    path("change-password/", ChangePasswordView.as_view()),
 
     # --- Private session support ---
     path("teachers/", TeacherListView.as_view()),
