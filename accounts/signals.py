@@ -5,10 +5,12 @@ from .models import User, Profile
 
 @receiver(post_save, sender=User)
 def create_profile(sender, instance, created, **kwargs):
+    defaults = {
+        "full_name": instance.username or instance.email,
+        "first_name": instance.username or instance.email,
+        "student_id": f"STU-{instance.id.hex[:8]}",
+    }
     Profile.objects.get_or_create(
         user=instance,
-        defaults={
-            "full_name": instance.username or instance.email,
-            "student_id": f"STU-{instance.id.hex[:8]}"
-        }
+        defaults=defaults,
     )

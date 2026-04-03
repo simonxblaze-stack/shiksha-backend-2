@@ -1,6 +1,7 @@
 from accounts.email_utils import send_gmail
 from rest_framework import status
 from rest_framework.permissions import BasePermission, IsAuthenticated, AllowAny, IsAdminUser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
@@ -43,6 +44,9 @@ from .serializers import (
 from .models import TeacherProfile, Profile
 
 from .permissions import IsEmailVerified
+
+# Indian states and districts data
+from .indian_states_data import STATES_WITH_DISTRICTS
 
 
 # =====================================================
@@ -327,11 +331,12 @@ class ApproveTeacherRoleView(APIView):
 
 
 # =====================================================
-# FORM FILLUP
+# FORM FILLUP (REVAMPED)
 # =====================================================
 
 class FormFillupView(APIView):
     permission_classes = [IsAuthenticated, IsEmailVerified]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def _is_teacher(self, user):
         return "TEACHER" in user.get_active_roles()
@@ -339,47 +344,113 @@ class FormFillupView(APIView):
     def get(self, request):
         user = request.user
         is_teacher = self._is_teacher(user)
+        profile = user.profile
 
         if is_teacher:
-            profile = user.profile
             tp = getattr(user, "teacher_profile", None)
 
             data = {
                 "form_type": "teacher",
-                "name": profile.full_name or "",
                 "email": user.email,
+
+                # Personal info (from Profile)
+                "first_name": profile.first_name or "",
+                "last_name": profile.last_name or "",
                 "phone": profile.phone or "",
-                "gender": tp.gender if tp else "",
-                "date_of_birth": tp.date_of_birth if tp else None,
-                "father_name": tp.father_name if tp else "",
-                "father_phone": tp.father_phone if tp else "",
-                "mother_name": tp.mother_name if tp else "",
-                "mother_phone": tp.mother_phone if tp else "",
-                "current_address": tp.current_address if tp else "",
-                "permanent_address": tp.permanent_address if tp else "",
-                "same_as_current": tp.same_as_current if tp else False,
-                "highest_qualification": tp.highest_qualification if tp else "",
-                "other_qualification": tp.other_qualification if tp else "",
-                "subject_specialization": tp.subject_specialization if tp else "",
-                "teaching_experience_years": tp.teaching_experience_years if tp else 0,
-                "previous_institution": tp.previous_institution if tp else "",
+                "gender": profile.gender or "",
+                "date_of_birth": profile.date_of_birth,
+                "profile_photo": profile.profile_photo.url if profile.profile_photo else None,
+
+                # Address (from Profile)
+                "state": profile.state or "",
+                "district": profile.district or "",
+                "city_town": profile.city_town or "",
+                "pin_code": profile.pin_code or "",
+
+                # Educational Qualifications
+                "highest_degree": tp.highest_degree if tp else "",
+                "field_of_study": tp.field_of_study if tp else "",
+                "year_of_completion": tp.year_of_completion if tp else None,
+                "teaching_certifications": tp.teaching_certifications if tp else [],
+                "qualification_certificate": (
+                    tp.qualification_certificate.url
+                    if tp and tp.qualification_certificate else None
+                ),
+
+                # Teaching Experience
+                "experience_range": tp.experience_range if tp else "",
+                "employment_status": tp.employment_status if tp else "",
+                "currently_employed": tp.currently_employed if tp else False,
+                "current_institution": tp.current_institution if tp else "",
+                "current_position": tp.current_position if tp else "",
+
+                # Verification Documents
+                "govt_id_type": tp.govt_id_type if tp else "",
+                "id_number": tp.id_number if tp else "",
+                "id_proof_front": (
+                    tp.id_proof_front.url if tp and tp.id_proof_front else None
+                ),
+                "id_proof_back": (
+                    tp.id_proof_back.url if tp and tp.id_proof_back else None
+                ),
+
+                # Course Application
+                "subject": tp.subject if tp else "",
+                "boards": tp.boards if tp else [],
+                "classes": tp.classes if tp else [],
+                "streams": tp.streams if tp else [],
+
+                # Skill Application
+                "skill_name": tp.skill_name if tp else "",
+                "skill_description": tp.skill_description if tp else "",
+                "skill_related_subject": tp.skill_related_subject if tp else "",
+                "skill_supporting_image": (
+                    tp.skill_supporting_image.url
+                    if tp and tp.skill_supporting_image else None
+                ),
+                "skill_supporting_video": (
+                    tp.skill_supporting_video.url
+                    if tp and tp.skill_supporting_video else None
+                ),
             }
         else:
-            profile = user.profile
             data = {
                 "form_type": "student",
-                "name": profile.full_name or "",
                 "email": user.email,
+
+                # Personal info
+                "first_name": profile.first_name or "",
+                "last_name": profile.last_name or "",
                 "phone": profile.phone or "",
+                "gender": profile.gender or "",
                 "date_of_birth": profile.date_of_birth,
+                "profile_photo": profile.profile_photo.url if profile.profile_photo else None,
+
+                # Address
+                "state": profile.state or "",
+                "district": profile.district or "",
+                "city_town": profile.city_town or "",
+                "pin_code": profile.pin_code or "",
+
+                # Parent/Guardian
                 "father_name": profile.father_name or "",
                 "father_phone": profile.father_phone or "",
                 "mother_name": profile.mother_name or "",
-                "guardian": profile.guardian or "",
+                "mother_phone": profile.mother_phone or "",
+                "guardian_name": profile.guardian_name or "",
                 "guardian_phone": profile.guardian_phone or "",
-                "current_address": profile.current_address or "",
-                "permanent_address": profile.permanent_address or "",
-                "same_as_current": profile.same_as_current,
+                "parent_guardian_email": profile.parent_guardian_email or "",
+
+                # Academic Info
+                "currently_studying": profile.currently_studying or "",
+                "current_class": profile.current_class or "",
+                "stream": profile.stream or "",
+                "board": profile.board or "",
+                "board_other": profile.board_other or "",
+                "school_name": profile.school_name or "",
+                "academic_year": profile.academic_year or "",
+                "highest_education": profile.highest_education or "",
+                "reason_not_studying": profile.reason_not_studying or "",
             }
 
         return Response(data)
@@ -394,13 +465,35 @@ class FormFillupView(APIView):
             serializer.update(user, serializer.validated_data)
         else:
             profile = user.profile
-            serializer = StudentFormFillupSerializer(
-                profile, data=request.data, partial=False
-            )
+            serializer = StudentFormFillupSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+            serializer.update(profile, serializer.validated_data)
 
         return Response({"detail": "Profile updated successfully."})
+
+
+# =====================================================
+# STATES & DISTRICTS API
+# =====================================================
+
+class StatesListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        """Return list of all Indian states/UTs."""
+        states = [{"name": s["name"]} for s in STATES_WITH_DISTRICTS]
+        return Response(states)
+
+
+class DistrictsListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, state_name):
+        """Return districts for a given state."""
+        for s in STATES_WITH_DISTRICTS:
+            if s["name"].lower() == state_name.lower():
+                return Response(s["districts"])
+        return Response([], status=status.HTTP_404_NOT_FOUND)
 
 
 # =====================================================
@@ -498,14 +591,21 @@ class TeacherListView(APIView):
         data = []
         for tp in qs:
             profile = getattr(tp.user, "profile", None)
-            name = (profile.full_name if profile and profile.full_name
-                    else tp.user.get_full_name() or tp.user.username)
+            name = ""
+            if profile:
+                if profile.first_name:
+                    name = f"{profile.first_name} {profile.last_name}".strip()
+                elif profile.full_name:
+                    name = profile.full_name
+            if not name:
+                name = tp.user.get_full_name() or tp.user.username
+
             avatar = profile.avatar_value() if profile else None
 
             data.append({
                 "id": str(tp.user.id),
                 "name": name,
-                "subject": tp.subject_specialization or "",
+                "subject": tp.subject_specialization or tp.subject or "",
                 "qualification": tp.qualification or "",
                 "rating": float(tp.rating) if tp.rating else None,
                 "avatar": avatar,
@@ -542,9 +642,17 @@ class ValidateStudentIdView(APIView):
                 "student_id": student_id,
             })
 
+        name = ""
+        if profile.first_name:
+            name = f"{profile.first_name} {profile.last_name}".strip()
+        elif profile.full_name:
+            name = profile.full_name
+        else:
+            name = profile.user.username
+
         return Response({
             "valid": True,
-            "name": profile.full_name or profile.user.username,
+            "name": name,
             "user_id": str(profile.user.id),
             "student_id": student_id,
         })

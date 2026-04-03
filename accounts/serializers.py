@@ -1,3 +1,5 @@
+from datetime import date
+
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from rest_framework.exceptions import ValidationError
@@ -18,6 +20,8 @@ class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = [
+            "first_name",
+            "last_name",
             "full_name",
             "email",
             "student_id",
@@ -42,6 +46,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         model = Profile
         fields = [
             "full_name",
+            "first_name",
+            "last_name",
             "phone",
             "avatar_image",
             "avatar_emoji",
@@ -199,89 +205,307 @@ class SignupSerializer(serializers.ModelSerializer):
 
 
 # =====================================================
-# STUDENT FORM FILLUP SERIALIZER
+# STUDENT FORM FILLUP SERIALIZER (REVAMPED)
 # =====================================================
 
-class StudentFormFillupSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(source="full_name")
-    email = serializers.EmailField(source="user.email", read_only=True)
+class StudentFormFillupSerializer(serializers.Serializer):
+    # --- Personal Info ---
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100)
+    phone = serializers.CharField(max_length=20)
+    gender = serializers.ChoiceField(
+        choices=Profile.GENDER_CHOICES, required=False, allow_blank=True
+    )
+    date_of_birth = serializers.DateField()
+    profile_photo = serializers.ImageField(required=False, allow_null=True)
 
-    class Meta:
-        model = Profile
-        fields = [
-            "name",
-            "email",
-            "phone",
-            "date_of_birth",
-            "father_name",
-            "father_phone",
-            "mother_name",
-            "guardian",
-            "guardian_phone",
-            "current_address",
-            "permanent_address",
-            "same_as_current",
-        ]
+    # --- Address ---
+    state = serializers.CharField(max_length=100)
+    district = serializers.CharField(max_length=100)
+    city_town = serializers.CharField(max_length=150)
+    pin_code = serializers.CharField(max_length=10, required=False, allow_blank=True)
 
-    def update(self, instance, validated_data):
+    # --- Parent/Guardian ---
+    father_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    father_phone = serializers.CharField(max_length=15, required=False, allow_blank=True)
+    mother_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    mother_phone = serializers.CharField(max_length=15, required=False, allow_blank=True)
+    guardian_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    guardian_phone = serializers.CharField(max_length=15, required=False, allow_blank=True)
+    parent_guardian_email = serializers.EmailField(required=False, allow_blank=True)
+
+    # --- Academic Info ---
+    currently_studying = serializers.ChoiceField(choices=Profile.CURRENTLY_STUDYING_CHOICES)
+
+    # If currently studying = yes
+    current_class = serializers.ChoiceField(
+        choices=Profile.CLASS_CHOICES, required=False, allow_blank=True
+    )
+    stream = serializers.ChoiceField(
+        choices=Profile.STREAM_CHOICES, required=False, allow_blank=True
+    )
+    board = serializers.ChoiceField(
+        choices=Profile.BOARD_CHOICES, required=False, allow_blank=True
+    )
+    board_other = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    school_name = serializers.CharField(max_length=250, required=False, allow_blank=True)
+    academic_year = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
+    # If currently studying = no
+    highest_education = serializers.ChoiceField(
+        choices=Profile.HIGHEST_EDUCATION_CHOICES, required=False, allow_blank=True
+    )
+    reason_not_studying = serializers.CharField(
+        max_length=200, required=False, allow_blank=True
+    )
+
+    def validate(self, data):
+        # At least ONE complete parent/guardian contact (name + phone)
+        has_contact = (
+            (data.get("father_name") and data.get("father_phone"))
+            or (data.get("mother_name") and data.get("mother_phone"))
+            or (data.get("guardian_name") and data.get("guardian_phone"))
+        )
+        if not has_contact:
+            raise ValidationError({
+                "parent_guardian": "At least one complete parent/guardian contact (name + phone) is required."
+            })
+
+        # Conditional academic validation
+        currently_studying = data.get("currently_studying")
+
+        if currently_studying == "yes":
+            if not data.get("current_class"):
+                raise ValidationError({"current_class": "Class is required when currently studying."})
+            if not data.get("board"):
+                raise ValidationError({"board": "Board is required when currently studying."})
+            if data.get("board") == "other" and not data.get("board_other"):
+                raise ValidationError({"board_other": "Please specify your board."})
+
+            # Stream required for class 11-12
+            current_class = data.get("current_class", "")
+            if current_class in ("11", "12") and not data.get("stream"):
+                raise ValidationError({"stream": "Stream is required for Class 11-12."})
+
+            # Auto-populate academic year
+            today = date.today()
+            if today.month >= 4:
+                data["academic_year"] = f"{today.year}-{today.year + 1}"
+            else:
+                data["academic_year"] = f"{today.year - 1}-{today.year}"
+
+        elif currently_studying == "no":
+            if not data.get("highest_education"):
+                raise ValidationError({
+                    "highest_education": "Highest education is required when not currently studying."
+                })
+
+        return data
+
+    def update(self, profile, validated_data):
+        # Remove profile_photo if not provided (don't clear existing)
+        photo = validated_data.pop("profile_photo", None)
+
         for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
+            setattr(profile, attr, value)
+
+        if photo:
+            profile.profile_photo = photo
+
+        profile.save()
+        return profile
 
 
 # =====================================================
-# TEACHER FORM FILLUP SERIALIZER
+# TEACHER FORM FILLUP SERIALIZER (REVAMPED)
 # =====================================================
 
 class TeacherFormFillupSerializer(serializers.Serializer):
-    # Shared fields (stored on Profile)
-    name = serializers.CharField()
-    phone = serializers.CharField()
-
-    # Teacher-specific fields
-    gender = serializers.ChoiceField(choices=TeacherProfile.GENDER_CHOICES)
-    date_of_birth = serializers.DateField()
-    father_name = serializers.CharField()
-    father_phone = serializers.CharField(required=False, allow_blank=True)
-    mother_name = serializers.CharField()
-    mother_phone = serializers.CharField(required=False, allow_blank=True)
-    current_address = serializers.CharField()
-    permanent_address = serializers.CharField(required=False, allow_blank=True)
-    same_as_current = serializers.BooleanField(default=False)
-    highest_qualification = serializers.ChoiceField(
-        choices=TeacherProfile.QUALIFICATION_CHOICES
+    # --- Personal Info (stored on Profile) ---
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100)
+    phone = serializers.CharField(max_length=20)
+    gender = serializers.ChoiceField(
+        choices=Profile.GENDER_CHOICES, required=False, allow_blank=True
     )
-    other_qualification = serializers.CharField(required=False, allow_blank=True)
-    subject_specialization = serializers.CharField()
-    teaching_experience_years = serializers.IntegerField(default=0)
-    previous_institution = serializers.CharField(required=False, allow_blank=True)
+    date_of_birth = serializers.DateField()
+    profile_photo = serializers.ImageField(required=False, allow_null=True)
+
+    # --- Address (stored on Profile) ---
+    state = serializers.CharField(max_length=100)
+    district = serializers.CharField(max_length=100)
+    city_town = serializers.CharField(max_length=150)
+    pin_code = serializers.CharField(max_length=10, required=False, allow_blank=True)
+
+    # --- Educational Qualifications ---
+    highest_degree = serializers.ChoiceField(choices=TeacherProfile.HIGHEST_DEGREE_CHOICES)
+    field_of_study = serializers.CharField(max_length=200)
+    year_of_completion = serializers.IntegerField(min_value=1970, max_value=2026)
+    teaching_certifications = serializers.ListField(
+        child=serializers.CharField(max_length=20),
+        required=False,
+        allow_empty=True,
+    )
+    qualification_certificate = serializers.FileField(required=False, allow_null=True)
+
+    # --- Teaching Experience ---
+    experience_range = serializers.ChoiceField(choices=TeacherProfile.EXPERIENCE_CHOICES)
+    employment_status = serializers.ChoiceField(choices=TeacherProfile.EMPLOYMENT_STATUS_CHOICES)
+    currently_employed = serializers.BooleanField(default=False)
+    current_institution = serializers.CharField(
+        max_length=250, required=False, allow_blank=True
+    )
+    current_position = serializers.CharField(
+        max_length=150, required=False, allow_blank=True
+    )
+
+    # --- Verification Documents ---
+    govt_id_type = serializers.ChoiceField(choices=TeacherProfile.GOVT_ID_TYPE_CHOICES)
+    id_number = serializers.CharField(max_length=50)
+    id_proof_front = serializers.FileField(required=True)
+    id_proof_back = serializers.FileField(required=False, allow_null=True)
+
+    # --- Course Application ---
+    subject = serializers.ChoiceField(
+        choices=TeacherProfile.SUBJECT_CHOICES, required=False, allow_blank=True
+    )
+    boards = serializers.ListField(
+        child=serializers.CharField(max_length=10),
+        required=False,
+        allow_empty=True,
+    )
+    classes = serializers.ListField(
+        child=serializers.CharField(max_length=5),
+        required=False,
+        allow_empty=True,
+    )
+    streams = serializers.ListField(
+        child=serializers.CharField(max_length=20),
+        required=False,
+        allow_empty=True,
+    )
+
+    # --- Skill Application ---
+    skill_name = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    skill_description = serializers.CharField(
+        max_length=500, required=False, allow_blank=True
+    )
+    skill_related_subject = serializers.ChoiceField(
+        choices=TeacherProfile.SUBJECT_CHOICES, required=False, allow_blank=True
+    )
+    skill_supporting_image = serializers.ImageField(required=False, allow_null=True)
+    skill_supporting_video = serializers.FileField(required=False, allow_null=True)
+
+    def validate_qualification_certificate(self, value):
+        if value and value.size > 5 * 1024 * 1024:
+            raise ValidationError("Qualification certificate must be under 5MB.")
+        return value
+
+    def validate_id_proof_front(self, value):
+        if value and value.size > 5 * 1024 * 1024:
+            raise ValidationError("ID proof must be under 5MB.")
+        return value
+
+    def validate_id_proof_back(self, value):
+        if value and value.size > 5 * 1024 * 1024:
+            raise ValidationError("ID proof must be under 5MB.")
+        return value
+
+    def validate_skill_supporting_image(self, value):
+        if value and value.size > 10 * 1024 * 1024:
+            raise ValidationError("Supporting image must be under 10MB.")
+        return value
+
+    def validate_skill_supporting_video(self, value):
+        if value and value.size > 50 * 1024 * 1024:
+            raise ValidationError("Supporting video must be under 50MB.")
+        return value
+
+    def validate(self, data):
+        # If course application fields partially filled, validate completeness
+        has_course = data.get("subject") or data.get("boards") or data.get("classes")
+        if has_course:
+            if not data.get("subject"):
+                raise ValidationError({"subject": "Subject is required for course application."})
+            if not data.get("boards"):
+                raise ValidationError({"boards": "At least one board is required."})
+            if not data.get("classes"):
+                raise ValidationError({"classes": "At least one class is required."})
+            # Stream required if class 11 or 12 selected
+            classes = data.get("classes", [])
+            if ("11" in classes or "12" in classes) and not data.get("streams"):
+                raise ValidationError({"streams": "Stream is required for Class 11-12."})
+
+        # If skill fields partially filled, validate completeness
+        has_skill = data.get("skill_name") or data.get("skill_description")
+        if has_skill:
+            if not data.get("skill_name"):
+                raise ValidationError({"skill_name": "Skill name is required."})
+            if not data.get("skill_description"):
+                raise ValidationError({"skill_description": "Skill description is required."})
+            if not data.get("skill_related_subject"):
+                raise ValidationError({"skill_related_subject": "Related subject is required."})
+
+        return data
 
     def update(self, user, validated_data):
-        # Update Profile (shared fields)
+        # --- Update Profile (personal + address) ---
         profile = user.profile
-        profile.full_name = validated_data["name"]
-        profile.phone = validated_data["phone"]
+
+        profile_fields = [
+            "first_name", "last_name", "phone", "gender",
+            "date_of_birth", "state", "district", "city_town", "pin_code",
+        ]
+
+        photo = validated_data.pop("profile_photo", None)
+        if photo:
+            profile.profile_photo = photo
+
+        for field in profile_fields:
+            if field in validated_data:
+                setattr(profile, field, validated_data[field])
         profile.save()
 
-        # Update TeacherProfile
+        # --- Update TeacherProfile ---
         tp, _ = TeacherProfile.objects.get_or_create(user=user)
 
         teacher_fields = [
-            "gender", "date_of_birth", "father_name", "father_phone",
-            "mother_name", "mother_phone", "current_address",
-            "permanent_address", "same_as_current", "highest_qualification",
-            "other_qualification", "subject_specialization",
-            "teaching_experience_years", "previous_institution",
+            # Educational qualifications
+            "highest_degree", "field_of_study", "year_of_completion",
+            "teaching_certifications",
+            # Teaching experience
+            "experience_range", "employment_status", "currently_employed",
+            "current_institution", "current_position",
+            # Verification
+            "govt_id_type", "id_number",
+            # Course application
+            "subject", "boards", "classes", "streams",
+            # Skill application
+            "skill_name", "skill_description", "skill_related_subject",
         ]
 
         for field in teacher_fields:
             if field in validated_data:
                 setattr(tp, field, validated_data[field])
 
+        # File fields
+        file_fields = [
+            "qualification_certificate", "id_proof_front", "id_proof_back",
+            "skill_supporting_image", "skill_supporting_video",
+        ]
+        for field in file_fields:
+            value = validated_data.get(field)
+            if value:
+                setattr(tp, field, value)
+
         tp.save()
         return user
-    
+
+
+# =====================================================
+# TEACHER LIST SERIALIZER
+# =====================================================
+
 class TeacherListSerializer(serializers.Serializer):
     """
     Returns teacher info for the student request form.
@@ -296,8 +520,11 @@ class TeacherListSerializer(serializers.Serializer):
 
     def get_name(self, obj):
         profile = getattr(obj.user, "profile", None)
-        if profile and profile.full_name:
-            return profile.full_name
+        if profile:
+            if profile.first_name:
+                return f"{profile.first_name} {profile.last_name}".strip()
+            if profile.full_name:
+                return profile.full_name
         return obj.user.get_full_name() or obj.user.username
 
     def get_avatar(self, obj):

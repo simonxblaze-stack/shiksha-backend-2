@@ -50,9 +50,75 @@ class CustomUserAdmin(UserAdmin):
 
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "full_name", "phone", "student_id", "date_of_birth", "is_complete")
-    search_fields = ("user__email", "full_name", "student_id", "phone")
-    list_filter = ("same_as_current",)
+    list_display = (
+        "user",
+        "first_name",
+        "last_name",
+        "phone",
+        "student_id",
+        "state",
+        "currently_studying",
+        "current_class",
+        "date_of_birth",
+        "is_complete",
+    )
+    search_fields = (
+        "user__email",
+        "first_name",
+        "last_name",
+        "full_name",
+        "student_id",
+        "phone",
+    )
+    list_filter = (
+        "gender",
+        "state",
+        "currently_studying",
+        "current_class",
+        "board",
+        "stream",
+    )
+
+    fieldsets = (
+        ("Personal Info", {
+            "fields": (
+                "user", "first_name", "last_name", "full_name",
+                "phone", "gender", "date_of_birth", "profile_photo",
+                "student_id",
+            )
+        }),
+        ("Avatar", {
+            "fields": ("avatar_image", "avatar_emoji"),
+            "classes": ("collapse",),
+        }),
+        ("Address", {
+            "fields": ("state", "district", "city_town", "pin_code"),
+        }),
+        ("Parent/Guardian (Student)", {
+            "fields": (
+                "father_name", "father_phone",
+                "mother_name", "mother_phone",
+                "guardian_name", "guardian_phone",
+                "parent_guardian_email",
+            ),
+            "classes": ("collapse",),
+        }),
+        ("Academic Info (Student)", {
+            "fields": (
+                "currently_studying", "current_class", "stream",
+                "board", "board_other", "school_name", "academic_year",
+                "highest_education", "reason_not_studying",
+            ),
+            "classes": ("collapse",),
+        }),
+        ("Legacy Fields", {
+            "fields": (
+                "current_address", "permanent_address", "same_as_current",
+                "guardian",
+            ),
+            "classes": ("collapse",),
+        }),
+    )
 
     def is_complete(self, obj):
         return obj.is_complete
@@ -77,16 +143,79 @@ class UserRoleAdmin(admin.ModelAdmin):
 class TeacherProfileAdmin(admin.ModelAdmin):
     list_display = (
         "user",
-        "gender",
-        "highest_qualification",
-        "subject_specialization",
-        "teaching_experience_years",
+        "highest_degree",
+        "field_of_study",
+        "experience_range",
+        "employment_status",
+        "subject",
         "is_approved",
         "is_complete",
     )
 
-    list_filter = ("is_approved", "gender", "highest_qualification")
-    search_fields = ("user__email", "subject_specialization", "father_name")
+    list_filter = (
+        "is_approved",
+        "highest_degree",
+        "experience_range",
+        "employment_status",
+        "subject",
+        "govt_id_type",
+    )
+    search_fields = (
+        "user__email",
+        "field_of_study",
+        "id_number",
+        "skill_name",
+    )
+
+    fieldsets = (
+        ("User", {
+            "fields": ("user", "is_approved"),
+        }),
+        ("Legacy Display Fields", {
+            "fields": ("qualification", "bio", "photo", "rating"),
+            "classes": ("collapse",),
+        }),
+        ("Educational Qualifications", {
+            "fields": (
+                "highest_degree", "field_of_study", "year_of_completion",
+                "teaching_certifications", "qualification_certificate",
+            ),
+        }),
+        ("Teaching Experience", {
+            "fields": (
+                "experience_range", "employment_status",
+                "currently_employed", "current_institution", "current_position",
+            ),
+        }),
+        ("Verification Documents", {
+            "fields": (
+                "govt_id_type", "id_number",
+                "id_proof_front", "id_proof_back",
+            ),
+        }),
+        ("Course Application", {
+            "fields": ("subject", "boards", "classes", "streams"),
+        }),
+        ("Skill Application", {
+            "fields": (
+                "skill_name", "skill_description", "skill_related_subject",
+                "skill_supporting_image", "skill_supporting_video",
+            ),
+            "classes": ("collapse",),
+        }),
+        ("Legacy Form Fillup Fields", {
+            "fields": (
+                "gender", "date_of_birth",
+                "father_name", "father_phone",
+                "mother_name", "mother_phone",
+                "current_address", "permanent_address", "same_as_current",
+                "highest_qualification", "other_qualification",
+                "subject_specialization", "teaching_experience_years",
+                "previous_institution",
+            ),
+            "classes": ("collapse",),
+        }),
+    )
 
     def is_complete(self, obj):
         return obj.is_complete

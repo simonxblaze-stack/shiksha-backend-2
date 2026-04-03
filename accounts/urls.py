@@ -8,6 +8,8 @@ from .views import (
     ResendVerificationEmailView,
     RefreshView,
     FormFillupView,
+    StatesListView,
+    DistrictsListView,
     TeacherListView,
     ValidateStudentIdView,
     ChangePasswordView,
@@ -23,6 +25,10 @@ urlpatterns = [
     path("refresh/", RefreshView.as_view()),
     path("form-fillup/", FormFillupView.as_view()),
     path("change-password/", ChangePasswordView.as_view()),
+
+    # --- Location data ---
+    path("states/", StatesListView.as_view()),
+    path("states/<str:state_name>/districts/", DistrictsListView.as_view()),
 
     # --- Private session support ---
     path("teachers/", TeacherListView.as_view()),
