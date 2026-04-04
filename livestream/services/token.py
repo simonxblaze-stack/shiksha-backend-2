@@ -31,6 +31,7 @@ def generate_livekit_token(
     # ✅ metadata (role info)
     token.with_metadata(json.dumps({
         "role": "presenter" if is_teacher else "viewer",
+        "user_type": "teacher" if user.has_role("TEACHER") else "student",
         "user_id": str(user.id),
     }, default=str))
 
